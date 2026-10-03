@@ -1,0 +1,25 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: samaledger
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?définir DB_PASSWORD dans .env}
+      POSTGRES_DB: samaledger
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U samaledger"]
+      interval: 5s
+      retries: 10
+  api:
+    build: .
+    environment:
+      DATABASE_URL: postgresql://samaledger:${DB_PASSWORD}@db:5432/samaledger
+      JWT_SECRET: ${JWT_SECRET:?définir JWT_SECRET (32 caractères minimum)}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:8000,null}
+    depends_on:
+      db: {condition: service_healthy}
+    ports: ["8000:8000"]
+volumes:
+  pgdata:
