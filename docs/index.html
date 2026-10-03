@@ -55,7 +55,7 @@ header,main{margin-left:196px;max-width:none}
 .kv{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line)}
 @media(max-width:760px){nav{position:static;width:auto;flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line);padding:10px}nav .brand{display:none}header,main{margin-left:0}.dg{grid-template-columns:1fr}}
 </style><link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&display=swap" rel="stylesheet"></head><body>
-<header><div class="row"><h1 id="ttl">Vue financière</h1><span class="pill">XOF · données réelles de votre société</span></div><p>Comptabilité SYSCOHADA automatisée, contrôlée par vos comptables</p><p id="note" class="warn" style="margin:0"></p></header>
+<header><div class="row"><h1 id="ttl">Vue financière</h1><span class="pill" id="pill">XOF</span></div><p>Comptabilité SYSCOHADA automatisée, contrôlée par vos comptables</p><p id="note" class="warn" style="margin:0"></p></header>
 <nav role="tablist" id="tabs"></nav>
 <main id="v"></main>
 <script>
@@ -128,7 +128,7 @@ function render(){if(!TOKEN){authView();return}
   h=`<h2>Balance générale</h2>`+(ks.length?`<div class="card scroll"><table><tr><th>Compte</th><th>Intitulé</th><th class="n">Débit</th><th class="n">Crédit</th><th class="n">Solde</th></tr>${ks.map(k=>{TD+=B[k].d;TC+=B[k].c;const s=B[k].d-B[k].c;return`<tr><td>${k}</td><td>${nm(k)}</td><td class="n">${F(B[k].d)}</td><td class="n">${F(B[k].c)}</td><td class="n ${s<0?'bad':'ok'}">${F(Math.abs(s))} ${s<0?'C':'D'}</td></tr>`}).join('')}<tr><th colspan="2">Totaux</th><th class="n">${F(TD)}</th><th class="n">${F(TC)}</th><th class="n ${TD==TC?'ok':'bad'}">${TD==TC?'Équilibrée':'Écart'}</th></tr></table></div>`:`<div class="card">Validez des opérations dans Banque pour produire la balance.</div>`)}
  if(tab=='Plan comptable')h=`<h2>Plan comptable SYSCOHADA révisé</h2><div class="card"><input placeholder="Rechercher un compte (ex. 631, banque, TVA)" oninput="fp(this.value)" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit">${CL.map(c=>`<details open><summary>Classe ${c[0]} – ${c[1]}</summary><table>${c[2].map(a=>`<tr data-s="${(a[0]+' '+a[1]).toLowerCase()}"><td style="width:70px"><b>${a[0]}</b></td><td>${a[1]}</td></tr>`).join('')}</table></details>`).join('')}</div>`;
  if(tab=='Budgets')h=`<h2>Budget et consommation</h2>${budHTML()}`;
- v.innerHTML=h;ttl.textContent=tab=='Tableau de bord'?'Vue financière':tab;if(tab=='Tableau de bord')startGlobe()}
+ v.innerHTML=h;ttl.textContent=tab=='Tableau de bord'?'Vue financière':tab;document.getElementById('pill').textContent=DEMO?'Mode démo · données fictives, dans votre navigateur':'XOF · données réelles de votre société';if(tab=='Tableau de bord')startGlobe()}
 function budHTML(){return `<div class="grid">${BUD.map(x=>{const p=x.s/x.b*100,c=p>90?'var(--bad)':p>80?'var(--warn)':'var(--ok)';
  return`<div class="card"><div class="row"><b>${x.d}</b><span>${p.toFixed(0)} %</span></div><div class="bar"><i style="width:${Math.min(p,100)}%;background:${c}"></i></div>
  <small>${F(x.s)} dépensés sur ${F(x.b)} – reste ${F(x.b-x.s)}</small>${p>80?`<div class="warn"><b>Alerte</b> : plus de 80 % du budget consommé.</div>`:''}</div>`}).join('')}</div>`}
@@ -221,19 +221,58 @@ function bottomBlock(){const TOP=Math.max(1,...REV,...EXP)*1.1,x=i=>50+i*46,h=v=
  <div><h2>Marge par ligne de produit</h2><div class="card" style="text-align:center">${dn}<div class="why" style="text-align:left">${PL.map(p=>`<div class="kv"><span><span style="color:${p[2]}">●</span> ${p[0]} · ${p[1]} % du profit</span><b>${p[3]} %</b></div>`).join('')}</div></div></div></div>`}
 
 const CT={SN:['Sénégal',14.7,-17.4],CI:['Côte d\'Ivoire',5.3,-4],ML:['Mali',12.6,-8],GN:['Guinée',9.5,-13.7],MR:['Mauritanie',18.1,-16],MA:['Maroc',33.6,-7.6],NG:['Nigeria',6.5,3.4],FR:['France',48.9,2.3],AE:['Émirats',25.2,55.3],GM:['Gambie',13.4,-16.6],BF:['Burkina Faso',12.4,-1.5],BJ:['Bénin',6.4,2.4],TG:['Togo',6.1,1.2],NE:['Niger',13.5,2.1],GH:['Ghana',5.6,-0.2],CM:['Cameroun',3.9,11.5],ES:['Espagne',40.4,-3.7],US:['États-Unis',38.9,-77],CN:['Chine',39.9,116.4]};
-async function api(p,m='GET',body){const h={Authorization:'Bearer '+TOKEN};let b;
+let DEMO=false,DB=null;const DEMO_USER=['demo@samaledger.sn','Demo-SamaLedger-2026'];
+const iso=x=>new Date(x).toISOString().slice(0,10);
+function cls(l,a,inv){const R=[[/FRAIS|COMMISSION|AGIOS/i,-1,'631','521','Frais bancaires','des frais bancaires (compte 631)'],[/RETRAIT|\bDAB\b/i,-1,'571','521',"Retrait d'espèces",'un retrait DAB alimente la caisse (compte 571)'],[/SALAIRE|PAIE\b/i,-1,'661','521','Salaires','la paie (compte 661)'],[/WAVE|ORANGE|BOUTIQUE|CLIENT/i,1,'521','411','Encaissement client',"l'entrée vient d'un canal de vente connu (compte 411)"],[/FOURN|SENELEC|SONATEL|\bSDE\b|ACHAT/i,-1,'401','521','Paiement fournisseur','le bénéficiaire est un fournisseur (compte 401)']];
+ const r=R.find(r=>r[0].test(l)&&(r[1]>0)==(a>0));
+ if(r)return{d:r[2],c:r[3],rule:r[4],ex:`J'ai classé cette opération comme « ${r[4]} » car ${r[5]}.`,conf:inv||a<0?'élevée':'moyenne'};
+ if(inv)return{d:a>0?'521':'401',c:a>0?'411':'521',rule:'Règlement de facture',ex:'Le montant correspond exactement à une facture ouverte.',conf:'élevée'};
+ return{d:a>0?'521':'471',c:a>0?'471':'521',rule:null,ex:"Tiers non reconnu : écriture en compte d'attente (471), à valider par un comptable.",conf:'faible'}}
+const addInvD=(number,kind,tp,amount,issue,due,cc,ln)=>{DB.inv.push({id:'i'+DB.n++,number,kind,third_party:tp,amount,issue_date:issue,due_date:due,status:'ouverte',country:cc||null,product_line:ln||null})};
+function impDemo(rows){const out={'importées':0,doublons:0,'à_vérifier':0,lignes_invalides:[]},seen=new Set(DB.tx.map(x=>x.k));
+ rows.forEach(([d,l,a])=>{const k=d+'|'+l.toUpperCase()+'|'+a,dup=seen.has(k);seen.add(k);
+  const inv=dup?null:DB.inv.find(i=>i.kind==(a>0?'vente':'achat')&&i.amount==Math.abs(a)&&i.status=='ouverte'&&!DB.tx.some(x=>x.matched_invoice_id==i.id)),c=cls(l,a,!!inv);
+  DB.tx.push({id:'t'+DB.n++,k,status:'classée',tx_date:d,label:l,amount:a,is_duplicate:dup,debit_code:c.d,credit_code:c.c,rule_label:c.rule,explanation:c.ex,confidence:c.conf,matched_invoice_id:inv?inv.id:null});
+  out['importées']++;out.doublons+=dup;out['à_vérifier']+=dup||c.conf!='élevée'});return out}
+function postD(t){t.status='validée';const i=DB.inv.find(i=>i.id==t.matched_invoice_id);if(i)i.status='payée'}
+function safeDemo(){const l=DB.tx.filter(t=>t.status=='classée'&&!t.is_duplicate&&t.confidence=='élevée');l.forEach(postD);return{'validées':l.length}}
+function seed(){let s=42;const rnd=()=>(s=s*16807%2147483647)/2147483647,T=Date.now(),D=864e5,n=new Date(T),S=[],
+ P=[['SN',.44],['CI',.16],['ML',.10],['GN',.07],['MR',.05],['FR',.08],['MA',.04],['NG',.04],['AE',.02]],L=[['Eau minérale',.5,.62],['Boissons gazeuses',.3,.7],['Jus',.2,.76]];
+ DB={inv:[],tx:[],n:0,bud:[{department:'Production',year:n.getUTCFullYear(),budget:5e8,spent:4.2e8},{department:'Marketing',year:n.getUTCFullYear(),budget:1.2e8,spent:9.5e7}]};
+ for(let i=0;i<12;i++){const f=Date.UTC(n.getUTCFullYear(),n.getUTCMonth()-(11-i),1),e=Math.min(T,Date.UTC(n.getUTCFullYear(),n.getUTCMonth()-(10-i),1)-D),tag=iso(f).slice(0,7).replace('-',''),tot=45e6*(1+.03*i)*(.9+.2*rnd()),day=()=>Math.min(f+Math.floor(rnd()*27)*D,e);
+  L.forEach(([ln,sh,co],k)=>{let sold=0;
+   P.forEach(([cc,w])=>{const a=Math.round(tot*sh*w*(.85+.3*rnd())/1e3)*1e3,d=day(),num=`F-${tag}-${cc}${k}`;addInvD(num,'vente','Distributeur '+cc,a,iso(d),iso(d+30*D),cc,ln);sold+=a;if(i<11||cc=='SN')S.push([iso(Math.min(d+10*D,T)),'VIR WAVE client '+num,a])});
+   const b=Math.round(sold*co*(.95+.1*rnd())/1e3)*1e3,d=day(),num=`A-${tag}-${k}`;addInvD(num,'achat','Fournisseur '+ln,b,iso(d),iso(d+30*D),null,ln);if(i<11)S.push([iso(Math.min(d+15*D,T)),'PAIEMENT FOURN '+num,-b])});
+  S.push([iso(e),'PAIE SALAIRES '+tag,-9e6],[iso(e),'FRAIS BANCAIRES TENUE COMPTE '+tag,-3500],[iso(e),'RETRAIT DAB PLATEAU '+tag,-4e5])}
+ S.push([iso(T),'VIREMENT INCONNU XZ',60000],[iso(T),'VIR ORANGE MONEY boutique',25000],[iso(T),'VIR ORANGE MONEY boutique',25000]);impDemo(S);safeDemo()}
+function insD(){const n=new Date(),ms=[...Array(12)].map((_,i)=>new Date(Date.UTC(n.getUTCFullYear(),n.getUTCMonth()-(11-i),1)).toISOString().slice(0,7)),pays={},pr={};
+ DB.inv.forEach(i=>{if(i.issue_date.slice(0,7)<ms[0])return;if(i.kind=='vente'&&i.country)pays[i.country]=(pays[i.country]||0)+i.amount;const p=pr[i.product_line||'Non affecté']=pr[i.product_line||'Non affecté']||{ventes:0,achats:0};p[i.kind=='vente'?'ventes':'achats']+=i.amount});
+ const sum=(a,f)=>a.filter(f).reduce((s,x)=>s+Math.abs(x.amount),0);
+ return{pays:Object.entries(pays).sort((a,b)=>b[1]-a[1]).map(([code,montant])=>({code,montant})),produits:Object.entries(pr).map(([ligne,v])=>({ligne,...v})),
+  mensuel:ms.map(mois=>({mois,revenus:sum(DB.inv,i=>i.kind=='vente'&&i.issue_date.startsWith(mois)),depenses:sum(DB.inv,i=>i.kind=='achat'&&i.issue_date.startsWith(mois))+sum(DB.tx,t=>t.amount<0&&t.status!='rejetée'&&!t.matched_invoice_id&&t.rule_label!="Retrait d'espèces"&&t.tx_date.startsWith(mois))}))}}
+async function apiDemo(p,m,body){if(!DB)seed();let t;
+ if(p.startsWith('/bank/transactions?'))return[...DB.tx].sort((a,b)=>b.tx_date.localeCompare(a.tx_date));
+ if(p=='/invoices'&&m=='GET')return DB.inv;
+ if(p=='/invoices'){if(DB.inv.some(i=>i.number==body.number&&i.kind==body.kind))throw new Error('Cette facture existe déjà');addInvD(body.number,body.kind,body.third_party,body.amount,body.issue_date,body.due_date,body.country,body.product_line);return{}}
+ if(p=='/budgets')return DB.bud;if(p=='/reports/insights')return insD();
+ if(p=='/bank/validate-safe')return safeDemo();
+ if(p=='/bank/import'){const rows=[],bad=[];(await body.get('file').text()).split(/\r?\n/).forEach((l,i)=>{if(!l.trim())return;const[d,lb,a]=l.split(';'),x=parseInt(String(a).replace(/\s/g,''));if(/^\d{4}-\d\d-\d\d$/.test(d)&&lb&&x)rows.push([d,lb.trim(),x]);else bad.push(i+1)});const o=impDemo(rows);o.lignes_invalides=bad;return o}
+ if(t=p.match(/^\/bank\/transactions\/(.+)\/(validate|reject)$/)){const x=DB.tx.find(y=>y.id==t[1]);if(!x||x.status!='classée')throw new Error('Opération introuvable ou déjà traitée');
+  if(t[2]=='reject')x.status='rejetée';else{if(x.is_duplicate)throw new Error("Doublon possible : rejetez l'opération");postD(x)}return{}}
+ throw new Error('Non disponible en mode démo')}
+async function api(p,m='GET',body){if(DEMO)return apiDemo(p,m,body);const h={Authorization:'Bearer '+TOKEN};let b;
  if(body instanceof FormData)b=body;else if(body){h['Content-Type']='application/json';b=JSON.stringify(body)}
  let r;try{r=await fetch(BASE+p,{method:m,headers:h,body:b})}catch(e){throw new Error('Impossible de joindre le serveur ('+(BASE||location.origin)+'). Vérifiez l\'adresse de l\'API (écran de connexion) et que l\'API tourne : dans un Codespace, qu\'il est allumé et que le port 8000 est public.')}
  if(r.status==401&&TOKEN){logout();throw new Error('Session expirée, reconnectez-vous')}
  const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(typeof d.detail=='string'?d.detail:'Données invalides ('+r.status+')');return d}
 const note=m=>{const n=document.getElementById('note');if(n)n.textContent=m||''};
-function logout(){TOKEN='';try{localStorage.removeItem('sl')}catch(e){}render()}
+function logout(){TOKEN='';DEMO=false;try{localStorage.removeItem('sl')}catch(e){}render()}
 function authView(){tabs.innerHTML='';ttl.textContent='Connexion';
  v.innerHTML=`<div class="card" style="max-width:380px;margin:40px auto"><h2 style="margin-top:0">${REG?'Créer une société':'Se connecter'}</h2>
  ${REG?'<label>Société<input id="cn" class="in"></label>':''}<label>Adresse de l'API <span class="why">(vide si l'API sert déjà cette page)</span><input id="sb" class="in" value="${BASE}" placeholder="https://…-8000.app.github.dev"></label><label>E-mail<input id="em" type="email" class="in"></label><label>Mot de passe (10 caractères minimum)<input id="pw" type="password" class="in"></label>
- <p><button class="btn" onclick="auth()">${REG?'Créer et entrer':'Entrer'}</button> <button class="btn s" onclick="REG=!REG;authView()">${REG?'J\'ai déjà un compte':'Créer une société'}</button></p></div>`}
+ ${location.hostname.endsWith('github.io')?`<p class="why">Démo sans serveur : ${DEMO_USER[0]} · ${DEMO_USER[1]}</p>`:''}<p><button class="btn" onclick="auth()">${REG?'Créer et entrer':'Entrer'}</button> <button class="btn s" onclick="REG=!REG;authView()">${REG?'J\'ai déjà un compte':'Créer une société'}</button></p></div>`}
 async function auth(){try{BASE=sb.value.trim().replace(/\/+$/,'');if(BASE&&!/^https?:\/\//.test(BASE))throw new Error('L\'adresse doit commencer par https://');try{localStorage.setItem('slbase|'+location.origin,BASE)}catch(e){}const b=REG?{company_name:cn.value,email:em.value,password:pw.value}:{email:em.value,password:pw.value};
- const d=await api(REG?'/auth/register':'/auth/login','POST',b);TOKEN=d.token;try{localStorage.setItem('sl',TOKEN)}catch(e){}await load();render()}catch(e){note(e.message)}}
+ DEMO=!BASE&&!(await fetch('/health').then(r=>r.ok).catch(()=>false));if(DEMO){if(REG)throw new Error('Création de société indisponible en mode démo');if(em.value.trim().toLowerCase()!=DEMO_USER[0]||pw.value!=DEMO_USER[1])throw new Error('Identifiants incorrects. Démo : '+DEMO_USER[0]+' / '+DEMO_USER[1]);TOKEN='demo'}else{const d=await api(REG?'/auth/register':'/auth/login','POST',b);TOKEN=d.token}try{localStorage.setItem('sl',TOKEN)}catch(e){}await load();render()}catch(e){note(e.message)}}
 async function load(){
  const [t,f,b,ins]=await Promise.all([api('/bank/transactions?limit=1000'),api('/invoices'),api('/budgets'),api('/reports/insights')]);
  const num={};f.forEach(i=>num[i.id]=i.number);INV=f;
@@ -261,6 +300,6 @@ function facHTML(){return`<div class="card"><h2 style="margin-top:0">Nouvelle fa
  <button class="btn" onclick="addInv()">Enregistrer la facture</button> <span class="why">Enregistrez les factures avant d'importer le relevé pour qu'elles soient rapprochées.</span></div>
  <h2>Factures</h2><div class="card scroll"><table><tr><th>N°</th><th>Tiers</th><th>Type</th><th class="n">Montant</th><th>Échéance</th><th>Statut</th></tr>${INV.map(i=>`<tr><td>${i.number}</td><td>${i.third_party}</td><td>${i.kind}</td><td class="n">${F(i.amount)}</td><td>${i.due_date}</td><td><span class="tag ${i.status=='payée'?'ok':'warn'}">${i.status}</span></td></tr>`).join('')||'<tr><td colspan="6">Aucune facture pour le moment.</td></tr>'}</table></div>`}
 const addInv=()=>act(()=>api('/invoices','POST',{third_party:ft.value,number:fn.value,kind:fk.value,amount:+fm.value,issue_date:fi.value,due_date:fd.value,country:fc.value||null,product_line:fl.value.trim()||null}).then(()=>note('Facture enregistrée.')));
-async function boot(){SRC='';if(TOKEN){try{await load()}catch(e){TOKEN=''}}render()}
+async function boot(){SRC='';DEMO=TOKEN=='demo';if(TOKEN){try{await load()}catch(e){TOKEN=''}}render()}
 boot();
 </script></body></html>
